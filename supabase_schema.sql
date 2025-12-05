@@ -43,6 +43,8 @@ create table settings (
   user_id uuid default auth.uid() unique,
   webhook_url text,
   enable_notifications boolean default false,
+  notify_email text,
+  enable_email_notification boolean default false,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 

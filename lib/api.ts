@@ -24,54 +24,54 @@ async function proxyRequest(url: string, method: string, headers: any, data?: an
 }
 
 export async function checkSiteHealth(url: string, type: 'wordpress' | 'custom' = 'wordpress') {
-  try {
-    // Ensure URL has protocol
-    let baseURL = url;
-    if (!baseURL.startsWith('http')) {
-      baseURL = `https://${baseURL}`;
-    }
-    // Remove trailing slash
-    baseURL = baseURL.replace(/\/$/, '');
+    try {
+        // Ensure URL has protocol
+        let baseURL = url;
+        if (!baseURL.startsWith('http')) {
+            baseURL = `https://${baseURL}`;
+        }
+        // Remove trailing slash
+        baseURL = baseURL.replace(/\/$/, '');
 
-    if (type === 'custom') {
-        try {
-            await axios.head(baseURL, { timeout: 5000 });
-            return { status: 'online' as const };
-        } catch (e) {
-            // Try GET if HEAD fails
+        if (type === 'custom') {
             try {
-                await axios.get(baseURL, { timeout: 5000 });
+                await axios.head(baseURL, { timeout: 15000 });
                 return { status: 'online' as const };
-            } catch (e2) {
-                return { status: 'offline' as const };
+            } catch (e) {
+                // Try GET if HEAD fails
+                try {
+                    await axios.get(baseURL, { timeout: 15000 });
+                    return { status: 'online' as const };
+                } catch (e2) {
+                    return { status: 'offline' as const };
+                }
             }
         }
-    }
 
-    const response = await axios.get(`${baseURL}/wp-json/`, {
-      timeout: 5000,
-    });
+        const response = await axios.get(`${baseURL}/wp-json/`, {
+            timeout: 15000,
+        });
 
-    if (response.status === 200 && response.data) {
-      return {
-        status: 'online' as const,
-        name: response.data.name,
-        description: response.data.description,
-        version: response.data.namespaces?.includes('wp/v2') ? 'WP API Active' : 'Unknown',
-      };
+        if (response.status === 200 && response.data) {
+            return {
+                status: 'online' as const,
+                name: response.data.name,
+                description: response.data.description,
+                version: response.data.namespaces?.includes('wp/v2') ? 'WP API Active' : 'Unknown',
+            };
+        }
+        return { status: 'offline' as const };
+    } catch (error) {
+        console.error('Error checking site:', error);
+        return { status: 'offline' as const };
     }
-    return { status: 'offline' as const };
-  } catch (error) {
-    console.error('Error checking site:', error);
-    return { status: 'offline' as const };
-  }
 }
 
 export async function getSiteStats(url: string) {
     try {
         const [postsResponse, commentsResponse] = await Promise.all([
-            axios.head(`${url}/wp-json/wp/v2/posts?per_page=1`),
-            axios.head(`${url}/wp-json/wp/v2/comments?per_page=1`)
+            axios.head(`${url}/wp-json/wp/v2/posts?per_page=1`, { timeout: 15000 }),
+            axios.head(`${url}/wp-json/wp/v2/comments?per_page=1`, { timeout: 15000 })
         ]);
 
         const postCount = parseInt(postsResponse.headers['x-wp-total'] || '0', 10);
@@ -98,47 +98,62 @@ export async function getRecentPosts(url: string) {
 }
 
 export async function getPostCountsByDate(url: string, days = 30) {
-  try {
-    const date = new Date();
-    date.setDate(date.getDate() - days);
-    const after = date.toISOString();
+    try {
+        const date = new Date();
+        date.setDate(date.getDate() - days);
+        const after = date.toISOString();
 
-    const response = await axios.get(`${url}/wp-json/wp/v2/posts?after=${after}&per_page=100&_fields=date`);
-    
-    if (!Array.isArray(response.data)) return {};
+        const response = await axios.get(`${url}/wp-json/wp/v2/posts?after=${after}&per_page=100&_fields=date`);
 
-    const counts: Record<string, number> = {};
-    response.data.forEach((post: { date: string }) => {
-      const dateStr = post.date.split('T')[0];
-      counts[dateStr] = (counts[dateStr] || 0) + 1;
-    });
+        if (!Array.isArray(response.data)) return {};
 
-    return counts;
-  } catch (error) {
-    console.error('Error fetching post counts by date:', error);
-    return {};
-  }
+        const counts: Record<string, number> = {};
+        response.data.forEach((post: { date: string }) => {
+            const dateStr = post.date.split('T')[0];
+            counts[dateStr] = (counts[dateStr] || 0) + 1;
+        });
+
+        return counts;
+    } catch (error) {
+        console.error('Error fetching post counts by date:', error);
+        return {};
+    }
 }
 
 export async function sendWebhookNotification(webhookUrl: string, siteName: string, siteUrl: string, status: string) {
-  if (!webhookUrl) return;
-  
-  try {
-    await axios.post(webhookUrl, {
-      msgtype: "markdown",
-      markdown: {
-        content: `### ⚠️ 站点状态异常通知
+    if (!webhookUrl) return;
+
+    try {
+        await axios.post(webhookUrl, {
+            msgtype: "markdown",
+            markdown: {
+                content: `### ⚠️ 站点状态异常通知
 > **站点名称**: ${siteName}
 > **站点地址**: ${siteUrl}
 > **当前状态**: <font color="warning">${status.toUpperCase()}</font>
 > **检测时间**: ${new Date().toLocaleString()}
 > 
 > 请尽快检查您的网站服务。`
-      }
-    });
-  } catch (error) {
-    console.error('Failed to send webhook notification:', error);
-  }
+            }
+        });
+    } catch (error) {
+        console.error('Failed to send webhook notification:', error);
+    }
+}
+
+export async function sendEmailNotification(email: string, siteName: string, siteUrl: string, status: string) {
+    if (!email) return;
+
+    try {
+        await axios.post('/api/send-email', {
+            to: email,
+            siteName,
+            siteUrl,
+            status
+        });
+    } catch (error) {
+        console.error('Failed to send email notification:', error);
+    }
 }
 
 function getAuthHeader(site: Site) {
@@ -163,7 +178,7 @@ export async function verifyCredentials(site: Site, username: string, appPasswor
     } catch (error: any) {
         console.error('Credential verification failed:', error);
         if (error.message.includes('401') || error.message.includes('403')) {
-             throw new Error('用户名或应用程序密码无效');
+            throw new Error('用户名或应用程序密码无效');
         }
         throw new Error(`验证失败: ${error.message}`);
     }
@@ -181,7 +196,7 @@ interface Plugin {
 
 export async function getPlugins(site: Site) {
     if (!site.username || !site.appPassword) throw new Error('Authentication required');
-    
+
     try {
         const data = await proxyRequest(
             `${site.url}/wp-json/wp/v2/plugins`,
@@ -244,11 +259,11 @@ export async function installPlugin(site: Site, slug: string) {
     } catch (error: any) {
         console.error('Error installing plugin:', error);
         if (error.response?.status === 500 || error.message.includes('500')) {
-             try {
-                  throw new Error('Plugin might be installed but activation failed. Please check manually.');
-             } catch (e) {
-                 throw new Error(error.response?.data?.message || 'Failed to install plugin');
-             }
+            try {
+                throw new Error('Plugin might be installed but activation failed. Please check manually.');
+            } catch (e) {
+                throw new Error(error.response?.data?.message || 'Failed to install plugin');
+            }
         }
         // Provide more helpful error message
         const msg = error.response?.data?.message || error.message;
@@ -273,7 +288,7 @@ interface Theme {
 
 export async function getThemes(site: Site) {
     if (!site.username || !site.appPassword) throw new Error('Authentication required');
-    
+
     try {
         const data = await proxyRequest(
             `${site.url}/wp-json/wp/v2/themes`,
@@ -346,7 +361,7 @@ export async function getCommentCounts(site: Site) {
 
     try {
         const statuses = ['all', 'hold', 'approve', 'spam', 'trash'];
-        
+
         const requests = statuses.map(status => {
             let query = '?per_page=1';
             if (status !== 'all') {
@@ -362,7 +377,7 @@ export async function getCommentCounts(site: Site) {
                 return parseInt(response.headers['x-wp-total'] || '0', 10);
             });
         });
-        
+
         const counts = await Promise.all(requests);
         return {
             all: counts[0],
@@ -436,7 +451,7 @@ export interface Post {
     format: string;
     categories: number[];
     tags: number[];
-    _embedded?: any; 
+    _embedded?: any;
 }
 
 export async function getPosts(site: Site, status?: string, per_page = 20, page = 1) {
@@ -444,7 +459,7 @@ export async function getPosts(site: Site, status?: string, per_page = 20, page 
 
     try {
         let query = `?per_page=${per_page}&page=${page}&_embed`;
-        
+
         // WP API filtering
         if (status && status !== 'all') {
             query += `&status=${status}`;
@@ -471,9 +486,9 @@ export async function getPostCounts(site: Site) {
     try {
         // Statuses to check
         const statuses = ['publish', 'draft', 'pending', 'private', 'trash'];
-        
+
         const requests = statuses.map(status => {
-             return proxyRequest(
+            return proxyRequest(
                 `${site.url}/wp-json/wp/v2/posts?per_page=1&status=${status}`,
                 'GET',
                 getAuthHeader(site),
