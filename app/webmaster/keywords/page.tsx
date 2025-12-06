@@ -35,6 +35,9 @@ export default function KeywordsCollectorPage() {
   const canSync = isSupabaseConfigured();
 
   const fetchData = async () => {
+    // Ensure session is ready before fetching
+    await supabase.auth.getSession();
+
     if (!canSync) return;
     setLoading(true);
     try {
@@ -59,7 +62,6 @@ export default function KeywordsCollectorPage() {
     fetchData();
   }, []);
 
-  // ... existing collectAndSync logic ...
   const collectAndSync = async () => {
     setLoading(true);
     setError(null);
@@ -174,17 +176,20 @@ export default function KeywordsCollectorPage() {
               ctr: r.ctr,
               position: r.position,
               last_seen: endDate,
-              user_id: session.user.id
+              user_id: session.user.id,
+              updated_at: new Date().toISOString() // Force update even if stats are same
             }));
 
-            const { error: upsertError } = await supabase.from('search_queries').upsert(payload, {
+            const { error: upsertError, data: upsertData } = await supabase.from('search_queries').upsert(payload, {
               onConflict: 'user_id,site_id,source,query',
               ignoreDuplicates: false
-            });
+            }).select(); // Select to confirm return
 
             if (upsertError) {
               console.error('Sync error:', upsertError);
               throw new Error(`数据库同步失败: ${upsertError.message}`);
+            } else {
+              console.log(`Upsert success: scanned ${chunk.length} rows`);
             }
             syncCount += chunk.length;
           }
