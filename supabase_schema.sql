@@ -145,3 +145,52 @@ create policy "Users can view their own pagespeed cache"
 create policy "Users can insert/update their own pagespeed cache"
   on pagespeed_cache for all
   using (auth.uid() = user_id);
+
+-- Create tracked_keywords table (keywords user wants to track ranking for)
+create table tracked_keywords (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid default auth.uid(),
+  site_id uuid references sites(id) on delete cascade,
+  keyword text not null,
+  source text not null, -- 'google' or 'bing'
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+alter table tracked_keywords enable row level security;
+
+create unique index uq_tracked_keywords on tracked_keywords (user_id, site_id, source, keyword);
+
+create policy "Users can view their own tracked keywords"
+  on tracked_keywords for select
+  using (auth.uid() = user_id);
+
+create policy "Users can manage their own tracked keywords"
+  on tracked_keywords for all
+  using (auth.uid() = user_id);
+
+-- Create keyword_ranking_history table (daily ranking snapshots)
+create table keyword_ranking_history (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid default auth.uid(),
+  site_id uuid references sites(id) on delete cascade,
+  keyword text not null,
+  source text not null, -- 'google' or 'bing'
+  position float8,
+  impressions integer default 0,
+  clicks integer default 0,
+  recorded_date date not null default current_date,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+alter table keyword_ranking_history enable row level security;
+
+create unique index uq_keyword_ranking on keyword_ranking_history 
+  (user_id, site_id, source, keyword, recorded_date);
+
+create policy "Users can view their own ranking history"
+  on keyword_ranking_history for select
+  using (auth.uid() = user_id);
+
+create policy "Users can manage their own ranking history"
+  on keyword_ranking_history for all
+  using (auth.uid() = user_id);
