@@ -1,0 +1,16 @@
+{
+    "crons": [
+        {
+            "path": "/api/qstash/cron/uptime",
+            "schedule": "*/5 * * * *"
+        },
+        {
+            "path": "/api/qstash/cron/pagespeed",
+            "schedule": "0 1 * * *"
+        },
+        {
+            "path": "/api/qstash/cron/rankings",
+            "schedule": "0 8 * * *"
+        }
+    ]
+}
