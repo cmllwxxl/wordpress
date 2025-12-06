@@ -8,7 +8,7 @@ import { useSiteStore } from '@/lib/store';
 import { useWebmasterStore } from '@/lib/webmaster-store';
 import axios from 'axios';
 import { useEffect, useState, useMemo } from 'react';
-import { LayoutDashboard, Bell, BarChart3, Database, AlertTriangle, Key, Globe, Tag, FilterX, Clock, RefreshCw, ExternalLink, Check, Plus, List, Search } from 'lucide-react';
+import { LayoutDashboard, Bell, BarChart3, Database, AlertTriangle, Key, Globe, Tag, FilterX, Clock, RefreshCw, ExternalLink, Check, Plus, List, Search, Gauge } from 'lucide-react';
 import Link from 'next/link';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { checkSiteHealth, getSiteStats } from '@/lib/api';
@@ -266,6 +266,13 @@ export default function Home() {
               >
                 <Clock className="w-5 h-5" />
               </Link>
+              <Link
+                href="/pagespeed"
+                className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-white dark:hover:bg-zinc-700 rounded-md transition-colors"
+                title="PageSpeed Insights"
+              >
+                <Gauge className="w-5 h-5" />
+              </Link>
 
               <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-600 mx-1" />
 
@@ -300,8 +307,8 @@ export default function Home() {
                 onClick={handleRefreshAll}
                 disabled={refreshing}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${refreshing
-                    ? 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 cursor-wait'
-                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                  ? 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 cursor-wait'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
                   }`}
               >
                 <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />

@@ -125,3 +125,23 @@ create policy "Users can view their own webmaster cache"
 create policy "Users can insert/update their own webmaster cache"
   on webmaster_cache for all
   using (auth.uid() = user_id);
+
+-- Create pagespeed_cache table
+create table pagespeed_cache (
+  site_id uuid primary key references sites(id) on delete cascade,
+  user_id uuid default auth.uid(),
+  mobile_data jsonb default '{}'::jsonb,
+  desktop_data jsonb default '{}'::jsonb,
+  last_sync bigint,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+alter table pagespeed_cache enable row level security;
+
+create policy "Users can view their own pagespeed cache"
+  on pagespeed_cache for select
+  using (auth.uid() = user_id);
+
+create policy "Users can insert/update their own pagespeed cache"
+  on pagespeed_cache for all
+  using (auth.uid() = user_id);
