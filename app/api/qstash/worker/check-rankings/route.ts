@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
             const match = latestData?.find((d: any) =>
                 d.site_id === kw.site_id &&
                 d.source === kw.source &&
-                d.query === kw.keyword
+                (d.query === kw.keyword || d.query.toLowerCase().trim() === kw.keyword.toLowerCase().trim())
             );
 
             if (match) {

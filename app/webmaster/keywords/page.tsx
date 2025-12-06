@@ -63,6 +63,9 @@ export default function KeywordsCollectorPage() {
   const collectAndSync = async () => {
     setLoading(true);
     setError(null);
+    let syncCount = 0;
+    let historyCount = 0;
+
     try {
       let bingMap: Record<string, string> = {};
       if (useBing && bingApiKey) {
@@ -74,7 +77,9 @@ export default function KeywordsCollectorPage() {
               if (s.Url) bingMap[normalizeUrl(s.Url)] = s.Url;
             });
           }
-        } catch (e) { }
+        } catch (e) {
+          console.warn('Bing sites fetch failed:', e);
+        }
       }
 
       const out: any[] = [];
@@ -103,7 +108,9 @@ export default function KeywordsCollectorPage() {
                 position: r.position || null
               });
             });
-          } catch (e: any) { }
+          } catch (e: any) {
+            console.warn(`Google fetch failed for ${site.name}:`, e);
+          }
         }
 
         if (useBing && bingApiKey) {
@@ -131,7 +138,9 @@ export default function KeywordsCollectorPage() {
                   });
                 });
               }
-            } catch (e: any) { }
+            } catch (e: any) {
+              console.warn(`Bing fetch failed for ${site.name}:`, e);
+            }
           }
         }
       }
@@ -175,7 +184,9 @@ export default function KeywordsCollectorPage() {
 
             if (upsertError) {
               console.error('Sync error:', upsertError);
+              throw new Error(`数据库同步失败: ${upsertError.message}`);
             }
+            syncCount += chunk.length;
           }
 
           // Also sync to ranking history for tracked keywords
@@ -188,18 +199,22 @@ export default function KeywordsCollectorPage() {
               const today = new Date().toISOString().split('T')[0];
               const historyPayload = sorted
                 .filter((r: any) => trackedKws.some((tk: any) =>
-                  tk.site_id === r.site_id && tk.keyword === r.query && tk.source === r.source
+                  tk.site_id === r.site_id &&
+                  tk.source === r.source &&
+                  (tk.keyword === r.query || tk.keyword.toLowerCase().trim() === r.query.toLowerCase().trim())
                 ))
-                .map((r: any) => ({
-                  site_id: r.site_id,
-                  keyword: r.query,
-                  source: r.source,
-                  position: r.position,
-                  impressions: r.impressions,
-                  clicks: r.clicks,
-                  recorded_date: today,
-                  user_id: session.user.id
-                }));
+                .map((r: any) => {
+                  return {
+                    site_id: r.site_id,
+                    keyword: r.query,
+                    source: r.source,
+                    position: r.position,
+                    impressions: r.impressions,
+                    clicks: r.clicks,
+                    recorded_date: today,
+                    user_id: session.user.id
+                  };
+                });
 
               if (historyPayload.length > 0) {
                 const { error: historyError } = await supabase
@@ -211,6 +226,8 @@ export default function KeywordsCollectorPage() {
 
                 if (historyError) {
                   console.error('Ranking history sync error:', historyError);
+                } else {
+                  historyCount = historyPayload.length;
                 }
               }
             }
@@ -219,8 +236,16 @@ export default function KeywordsCollectorPage() {
           }
         }
       }
+
+      if (canSync) {
+        alert(`采集完成！\n同步搜索词: ${syncCount} 条\n同步排名历史: ${historyCount} 条`);
+      } else {
+        alert('采集完成 (未配置数据库，仅本地显示)');
+      }
+
     } catch (e: any) {
       setError(e.message || '采集失败');
+      console.error(e);
     } finally {
       setLoading(false);
     }
