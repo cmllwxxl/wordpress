@@ -10,7 +10,7 @@ import { clsx } from 'clsx';
 import Link from 'next/link';
 
 export default function KeywordsCollectorPage() {
-  const { sites } = useSiteStore();
+  const { sites, fetchSites } = useSiteStore();
   const { googleJson, googleProxy, bingApiKey } = useWebmasterStore();
 
   const [startDate, setStartDate] = useState(() => {
@@ -63,14 +63,23 @@ export default function KeywordsCollectorPage() {
   };
 
   useEffect(() => {
-    fetchData();
-
     // 监听认证状态变化，确保 session 恢复后重新获取数据
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-        fetchData();
+        if (session?.user) {
+          // 先同步 sites 数据，确保 site_id 在数据库中存在
+          await fetchSites();
+          await fetchData();
+        }
       }
     });
+
+    // 初始加载
+    const init = async () => {
+      await fetchSites();
+      await fetchData();
+    };
+    init();
 
     return () => {
       subscription.unsubscribe();
@@ -195,18 +204,25 @@ export default function KeywordsCollectorPage() {
               updated_at: new Date().toISOString() // Force update even if stats are same
             }));
 
+            console.log('Upserting payload sample:', payload[0]);
+
             const { error: upsertError, data: upsertData } = await supabase.from('search_queries').upsert(payload, {
               onConflict: 'user_id,site_id,source,query',
               ignoreDuplicates: false
-            }).select(); // Select to confirm return
+            }).select();
 
             if (upsertError) {
               console.error('Sync error:', upsertError);
               throw new Error(`数据库同步失败: ${upsertError.message}`);
+            } else if (!upsertData || upsertData.length === 0) {
+              console.error('Upsert returned no data - RLS policy may be blocking writes');
+              console.error('User ID:', session.user.id);
+              console.error('Payload count:', payload.length);
+              throw new Error('数据库同步失败: 数据未写入，请检查数据库权限配置');
             } else {
-              console.log(`Upsert success: scanned ${chunk.length} rows`);
+              console.log(`Upsert success: ${upsertData.length} rows written`);
             }
-            syncCount += chunk.length;
+            syncCount += upsertData?.length || 0;
           }
 
           // Also sync to ranking history for tracked keywords
