@@ -35,15 +35,19 @@ export default function KeywordsCollectorPage() {
   const canSync = isSupabaseConfigured();
 
   const fetchData = async () => {
-    // Ensure session is ready before fetching
-    await supabase.auth.getSession();
-
     if (!canSync) return;
     setLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        console.warn('User not authenticated, skipping fetch');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('search_queries')
         .select('*')
+        .eq('user_id', session.user.id)
         .order('impressions', { ascending: false });
 
       if (error) throw error;
