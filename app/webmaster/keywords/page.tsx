@@ -64,6 +64,17 @@ export default function KeywordsCollectorPage() {
 
   useEffect(() => {
     fetchData();
+
+    // 监听认证状态变化，确保 session 恢复后重新获取数据
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        fetchData();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const collectAndSync = async () => {
