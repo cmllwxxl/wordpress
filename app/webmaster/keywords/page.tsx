@@ -258,6 +258,8 @@ export default function KeywordsCollectorPage() {
       }
 
       if (canSync) {
+        // 同步完成后，重新从数据库获取数据，确保本地状态和数据库一致
+        await fetchData();
         alert(`采集完成！\n同步搜索词: ${syncCount} 条\n同步排名历史: ${historyCount} 条`);
       } else {
         alert('采集完成 (未配置数据库，仅本地显示)');
